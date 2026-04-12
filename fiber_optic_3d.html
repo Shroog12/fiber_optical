@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>كابل الألياف الضوئية - نموذج ثلاثي الأبعاد</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #06060f; overflow: hidden; font-family: 'Segoe UI', Tahoma, sans-serif; }
+#wrapper { position: relative; width: 100vw; height: 100vh; background: #06060f; overflow: hidden; }
+#c { display: block; width: 100%; height: 100%; cursor: grab; }
+#c:active { cursor: grabbing; }
+#tip {
+  position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
+  font-size: 13px; color: rgba(255,255,255,0.45);
+  background: rgba(0,0,0,0.55); padding: 5px 16px; border-radius: 20px;
+  pointer-events: none; white-space: nowrap;
+}
+#info {
+  position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+  display: flex; gap: 10px; flex-wrap: wrap; justify-content: center;
+}
+.badge {
+  background: rgba(255,255,255,0.07); border: 0.5px solid rgba(255,255,255,0.18);
+  border-radius: 20px; padding: 5px 14px; font-size: 12px; color: rgba(255,255,255,0.6);
+  white-space: nowrap;
+}
+.badge b { color: #fff; font-weight: 600; }
+#title {
+  position: absolute; top: 16px; right: 20px;
+  font-size: 15px; font-weight: 600; color: rgba(255,255,255,0.75);
+  background: rgba(0,0,0,0.4); padding: 6px 14px; border-radius: 10px;
+  border: 0.5px solid rgba(255,255,255,0.12);
+}
+</style>
+</head>
+<body>
+<div id="wrapper">
+  <canvas id="c"></canvas>
+  <div id="title">كابل الألياف الضوئية</div>
+  <div id="tip">اسحب للتدوير &nbsp;•&nbsp; scroll للتكبير</div>
+  <div id="info">
+    <div class="badge"><b>الغلاف الخارجي</b> — PVC</div>
+    <div class="badge"><b>8 أنابيب</b> ملونة</div>
+    <div class="badge"><b>البيانات</b> تنتقل بالضوء</div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const canvas = document.getElementById('c');
+const W = window.innerWidth, H = window.innerHeight;
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(W, H);
+renderer.setClearColor(0x06060f, 1);
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x06060f, 0.025);
+
+const camera = new THREE.PerspectiveCamera(42, W / H, 0.1, 100);
+camera.position.set(0, 2.2, 8.5);
+camera.lookAt(0, 0, 0);
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.25));
+const dir = new THREE.DirectionalLight(0xffffff, 1.0);
+dir.position.set(4, 8, 6);
+scene.add(dir);
+const rim = new THREE.DirectionalLight(0x2255ff, 0.7);
+rim.position.set(-6, -2, -4);
+scene.add(rim);
+const glow = new THREE.PointLight(0x0066ff, 3, 10);
+glow.position.set(0, 0, 3.5);
+scene.add(glow);
+
+const group = new THREE.Group();
+scene.add(group);
+
+const CABLE_R = 0.68;
+const HALF = 3.2;
+
+const sheathGeo = new THREE.CylinderGeometry(CABLE_R, CABLE_R, HALF * 2, 64, 1, true);
+const sheathMat = new THREE.MeshStandardMaterial({ color: 0x1c1c1c, roughness: 0.25, metalness: 0.55, side: THREE.FrontSide });
+const sheath = new THREE.Mesh(sheathGeo, sheathMat);
+sheath.rotation.x = Math.PI / 2;
+group.add(sheath);
+
+const ringMat = new THREE.MeshStandardMaterial({ color: 0x999999, roughness: 0.08, metalness: 0.95 });
+for (let i = 0; i < 10; i++) {
+  const rg = new THREE.TorusGeometry(CABLE_R + 0.03, 0.038, 12, 64);
+  const rm = new THREE.Mesh(rg, ringMat);
+  rm.position.z = -HALF + 0.5 + i * 0.55;
+  group.add(rm);
+}
+
+const capMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.2, metalness: 0.85 });
+const capGeo = new THREE.CylinderGeometry(CABLE_R + 0.01, CABLE_R + 0.01, 0.18, 64);
+const cap = new THREE.Mesh(capGeo, capMat);
+cap.rotation.x = Math.PI / 2;
+cap.position.z = -HALF + 0.09;
+group.add(cap);
+
+const TUBE_COLORS = [0xff2222, 0x3388ff, 0x22cc44, 0xffcc00, 0xff6600, 0xcc33ff, 0x00ccdd, 0xff66aa];
+const TUBE_R = 0.095;
+const PACK_R = 0.30;
+const pulses = [];
+
+TUBE_COLORS.forEach((col, i) => {
+  const angle = (i / 8) * Math.PI * 2;
+  const px = Math.cos(angle) * PACK_R;
+  const py = Math.sin(angle) * PACK_R;
+  const fanX = (i / 7 - 0.5) * 2.0;
+  const fanY = Math.sin((i / 7) * Math.PI) * 0.5 - 0.15;
+
+  const curve = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(px, py, -HALF + 0.2),
+    new THREE.Vector3(px * 0.85, py * 0.85, -0.4),
+    new THREE.Vector3(px * 0.4 + fanX * 0.2, py * 0.4 + fanY * 0.4, 1.2),
+    new THREE.Vector3(fanX, fanY, 2.4),
+    new THREE.Vector3(fanX * 1.1, fanY - 0.05, HALF + 0.4)
+  ]);
+
+  const tGeo = new THREE.TubeGeometry(curve, 50, TUBE_R, 14, false);
+  const tMat = new THREE.MeshStandardMaterial({ color: col, roughness: 0.35, metalness: 0.15 });
+  group.add(new THREE.Mesh(tGeo, tMat));
+
+  const disc = new THREE.Mesh(
+    new THREE.CircleGeometry(TUBE_R - 0.005, 16),
+    new THREE.MeshStandardMaterial({ color: 0x111111 })
+  );
+  const ep = curve.getPoint(1);
+  const et = curve.getTangent(1);
+  disc.position.copy(ep);
+  disc.lookAt(ep.clone().add(et));
+  group.add(disc);
+
+  for (let f = 0; f < 3; f++) {
+    const foff = (f / 2 - 0.5) * (TUBE_R * 0.7);
+    const fc = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(px + foff, py, -HALF + 0.15),
+      new THREE.Vector3(px * 0.8 + foff * 0.8, py * 0.8, -0.3),
+      new THREE.Vector3(fanX * 0.45 + foff * 0.6, fanY * 0.4, 1.4),
+      new THREE.Vector3(fanX + foff * 1.2, fanY + (Math.random() - 0.5) * 0.15, 2.6),
+      new THREE.Vector3(fanX * 1.15 + foff * 1.6, fanY - 0.12, HALF + 0.6)
+    ]);
+
+    const fGeo = new THREE.TubeGeometry(fc, 60, 0.014, 6, false);
+    const fMat = new THREE.MeshStandardMaterial({
+      color: 0x99ddff, emissive: 0x003388, emissiveIntensity: 0.5,
+      roughness: 0.05, transparent: true, opacity: 0.82
+    });
+    group.add(new THREE.Mesh(fGeo, fMat));
+
+    const tip = new THREE.Mesh(
+      new THREE.SphereGeometry(0.025, 8, 8),
+      new THREE.MeshStandardMaterial({ color: 0xaaeeff, emissive: 0x0077ff, emissiveIntensity: 3.0, transparent: true, opacity: 0.9 })
+    );
+    tip.position.copy(fc.getPoint(1));
+    group.add(tip);
+
+    const pulse = new THREE.Mesh(
+      new THREE.SphereGeometry(0.028, 8, 8),
+      new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0x00aaff, emissiveIntensity: 4, transparent: true, opacity: 0 })
+    );
+    pulse.userData = { curve: fc, t: Math.random(), speed: 0.18 + Math.random() * 0.22 };
+    group.add(pulse);
+    pulses.push(pulse);
+
+    const trail = new THREE.Mesh(
+      new THREE.SphereGeometry(0.018, 6, 6),
+      new THREE.MeshStandardMaterial({ color: 0x88ccff, emissive: 0x0055cc, emissiveIntensity: 2.5, transparent: true, opacity: 0 })
+    );
+    trail.userData = { leader: pulse, lag: 0.04 };
+    group.add(trail);
+    pulses.push(trail);
+  }
+});
+
+const coreMesh = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.065, 0.065, HALF * 2 - 0.3, 12),
+  new THREE.MeshStandardMaterial({ color: 0xbbbbbb, roughness: 0.75 })
+);
+coreMesh.rotation.x = Math.PI / 2;
+group.add(coreMesh);
+
+group.rotation.x = 0.18;
+group.rotation.y = 0.35;
+
+let isDrag = false, mpx = 0, mpy = 0;
+let tRY = 0.35, tRX = 0.18, cRY = 0.35, cRX = 0.18;
+let tZoom = 8.5, cZoom = 8.5;
+let autoRot = true;
+
+canvas.addEventListener('mousedown', e => { isDrag = true; mpx = e.clientX; mpy = e.clientY; autoRot = false; });
+window.addEventListener('mouseup', () => { isDrag = false; });
+window.addEventListener('mousemove', e => {
+  if (!isDrag) return;
+  tRY += (e.clientX - mpx) * 0.010; tRX += (e.clientY - mpy) * 0.008;
+  tRX = Math.max(-1.3, Math.min(1.3, tRX));
+  mpx = e.clientX; mpy = e.clientY;
+});
+canvas.addEventListener('wheel', e => { tZoom += e.deltaY * 0.01; tZoom = Math.max(3, Math.min(14, tZoom)); e.preventDefault(); }, { passive: false });
+canvas.addEventListener('touchstart', e => { isDrag = true; mpx = e.touches[0].clientX; mpy = e.touches[0].clientY; autoRot = false; e.preventDefault(); }, { passive: false });
+canvas.addEventListener('touchend', () => isDrag = false);
+canvas.addEventListener('touchmove', e => {
+  if (!isDrag) return;
+  tRY += (e.touches[0].clientX - mpx) * 0.012; tRX += (e.touches[0].clientY - mpy) * 0.010;
+  tRX = Math.max(-1.3, Math.min(1.3, tRX));
+  mpx = e.touches[0].clientX; mpy = e.touches[0].clientY;
+  e.preventDefault();
+}, { passive: false });
+
+const clock = new THREE.Clock();
+
+function animate() {
+  requestAnimationFrame(animate);
+  const t = clock.getElapsedTime();
+  clock.getDelta();
+
+  if (autoRot) tRY += 0.004;
+  cRY += (tRY - cRY) * 0.07;
+  cRX += (tRX - cRX) * 0.07;
+  cZoom += (tZoom - cZoom) * 0.07;
+  group.rotation.y = cRY;
+  group.rotation.x = cRX;
+  camera.position.z = cZoom;
+
+  pulses.forEach(p => {
+    if (p.userData.leader) {
+      const lt = Math.max(0, p.userData.leader.userData.t - p.userData.lag);
+      p.position.copy(p.userData.leader.userData.curve.getPoint(lt));
+      p.material.opacity = p.userData.leader.material.opacity * 0.6;
+    } else {
+      p.userData.t += 0.003 + p.userData.speed * 0.002;
+      if (p.userData.t > 1.05) p.userData.t = -0.05;
+      const t01 = Math.max(0, Math.min(1, p.userData.t));
+      p.position.copy(p.userData.curve.getPoint(t01));
+      const fade = Math.sin(p.userData.t * Math.PI);
+      p.material.opacity = Math.max(0, Math.min(1, fade * 1.4));
+    }
+  });
+
+  glow.intensity = 2.5 + Math.sin(t * 3.5) * 0.8;
+  glow.position.x = Math.sin(t * 0.7) * 0.8;
+  glow.position.y = Math.cos(t * 0.5) * 0.4;
+
+  renderer.render(scene, camera);
+}
+animate();
+
+window.addEventListener('resize', () => {
+  const nw = window.innerWidth, nh = window.innerHeight;
+  camera.aspect = nw / nh;
+  camera.updateProjectionMatrix();
+  renderer.setSize(nw, nh);
+});
+</script>
+</body>
+</html>
